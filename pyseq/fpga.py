@@ -69,15 +69,24 @@ class FPGA():
             - fpga object: A fpga object to control the FPGA.
 
         """
+        if isinstance(com_port_command, int):
+            com_port_command = 'COM'+str(com_port)
+        if isinstance(com_port_response, int):
+            com_port_response = 'COM'+str(com_port)
 
-        # Open Serial Port
-        s_command = serial.Serial(com_port_command, baudrate, timeout = 1)
-        s_response = serial.Serial(com_port_response, baudrate, timeout = 1)
+        try:
+            # Open Serial Port
+            s_command = serial.Serial(com_port_command, baudrate, timeout = 1)
+            s_response = serial.Serial(com_port_response, baudrate, timeout = 1)
 
-        # Text wrapper around serial port
-        self.serial_port = io.TextIOWrapper(io.BufferedRWPair(s_response,s_command),
-                                            encoding = 'ascii',
-                                            errors = 'ignore')
+            # Text wrapper around serial port
+            self.serial_port = io.TextIOWrapper(io.BufferedRWPair(s_response,s_command),
+                                                encoding = 'ascii',
+                                                errors = 'ignore')
+        except:
+            print('ERROR::Check FPGA Ports')
+            self.serial_port = None
+
         self.suffix = '\n'
         self.y_offset = 7000000
         self.logger = logger
@@ -89,7 +98,12 @@ class FPGA():
     def initialize(self):
         """Initialize the FPGA."""
 
-        response = self.command('RESET')                                        # Initialize FPGA
+        response = self.command('RESET')
+        response = self.serial_port.readline()                                    # Initialize FPGA
+        if self.logger is not None:
+            self.logger.info('FPGA::rcvd::'+response)
+        else:
+            print(response)
         self.command('EX1HM')                                                   # Home excitation filter on laser line 1
         self.command('EX2HM')                                                   # Home excitation filter on laser line 2
         self.command('EM2I')                                                    # Move emission filter into light path
@@ -97,11 +111,12 @@ class FPGA():
         self.LED(1,'off')
         self.LED(2,'off')
 
-    def command(self, text):
+    def command(self, text, instrument='FPGA'):
         """Send commands to the FPGA and return the response.
 
            **Parameters:**
             - text (str): A command to send to the FPGA.
+            - instrument (str): Specify instrument (FPGA,OBJstage,Zstage,optics)
 
            **Returns:**
             - str: The response from the FPGA.
@@ -117,8 +132,8 @@ class FPGA():
         self.serial_port.flush()                                        # Flush serial port
         response = self.serial_port.readline()
         if self.logger is not None:
-            self.logger.info('FPGA::txmt::'+text)
-            self.logger.info('FPGA::rcvd::'+response)
+            self.logger.info(instrument+'::txmt::'+text)
+            self.logger.info(instrument+'::rcvd::'+response)
         else:
             print(response)
 

@@ -5,13 +5,13 @@ Control an Illumina HiSeq 2500 System Interactively
 
 # HiSeq Modifications
 ## Remove front panel (optional)
-It may be easier to remove the front panel of the HiSeq for easier access to all the screws of the stage and the all the valves. 
+It may be easier to remove the front panel of the HiSeq for easier access to all the screws of the stage and the all the valves.
 To remove the front pannel, first open the stage door and disconnect the wires to the stage door sensors/lock (located to the right of the stage).
 Then unscrew 2 philips head screws behind the pump door and 2 philips head screws behind chiller door.
-Also remove any additional screws on the left side of the HiSeq. 
+Also remove any additional screws on the left side of the HiSeq.
 Pry off the front panel slowly and set aside until ready to reattach.
-Reattach front planel by sliding into place. 
-Reconnect wires to door sensors/lock and then secure panel with screws. 
+Reattach front planel by sliding into place.
+Reconnect wires to door sensors/lock and then secure panel with screws.
 
 ## Remove stage plate (required)
 It may be easier to access the stage if the front panel of the HiSeq is removed.
@@ -26,7 +26,7 @@ Resecure the stage plate.
 Our flowcell design only uses the outlets 4 and 5 of each flow cell slot. To maximize the capacity of the pump, inlets 1-4 and 5-8 of the pump are tied to outlets 4 and 5 of the flow cell respectivly with 5 port port PEEK manifold (VICI, C5M1PK), ¼-28 flanged tube fittings with washers (VICI, CF-1A and CF-W1), and 1/16 in. OD PTFE tubing.
 
 ## Additional reagent lines (optional)
-Ports 9, 21, 22, 23, and 24 are not used on HiSeq 2500 reagent valves. Additional reagent lines can be added to these ports with 1/16 in. outer diameter PTFE tubing and 6-40 one-piece nuts/bushings (VICI, CNNF1PK). A 1 cm diameter hole was drilled into the left side of the HiSeq front panel which was used to direct additional reagent lines through to external reagent reservoirs. 
+Ports 9, 21, 22, 23, and 24 are not used on HiSeq 2500 reagent valves. Additional reagent lines can be added to these ports with 1/16 in. outer diameter PTFE tubing and 6-40 one-piece nuts/bushings (VICI, CNNF1PK). A 1 cm diameter hole was drilled into the left side of the HiSeq front panel which was used to direct additional reagent lines through to external reagent reservoirs.
 
 # Initializing HiSeq
 
@@ -47,8 +47,8 @@ hs = pyseq.HiSeq(xCOM='COM67', yCOM='COM68', fpgaCOM=['COM10', 'COM11'], laser1C
 # Basic setup of HiSeq
 
 ```python
-hs.lasers['green'].set_power(100)                #Set green laser power to 100 mW
-hs.lasers['red'].set_power(100)                #Set red laser power to 100 mW
+hs.lasers['green'].set_power(100)   #Set green laser power to 100 mW
+hs.lasers['red'].set_power(100)     #Set red laser power to 100 mW
 
 hs.y.move(-180000)                  #Move stage to top right corner of Flow Cell A
 hs.x.move(17571)
@@ -56,11 +56,11 @@ hs.z.move([21250, 21250, 21250])    #Raise z stage
 
 hs.obj.move(30000)                  #Move objective to middle-ish
 
-hs.optics.move_ex('green','open')                #Move excitation filter 1 to open position
-hs.optics.move_ex('red','open')                #Move excitation filter 2 to open position
+hs.move_ex('green','open')                #Move excitation filter 1 to open position
+hs.move_ex('red','open')                #Move excitation filter 2 to open position
 
-hs.lasers['green'].get_power()                   #Get green laser power (mW i think)
-hs.lasers['red'].get_power()                   #Get red laser power   (mW i think)
+hs.lasers['green'].get_power()      #Get green laser power (mW i think)
+hs.lasers['red'].get_power()        #Get red laser power   (mW i think)
 ```
 
 # Image acquisition
@@ -96,7 +96,7 @@ hs.y.move(Y)         # Y should be between -7000000 and 7500000
 hs.x.move(X)         # X should be between 1000 and 50000
 hs.z.move([Z, Z, Z]) # Z should be between 0 and 25000
 
-hs.obj.move(O)       # O should be between 0 and 65000
+hs.obj.move(31000)   # Objective should be between 0 and 65000
 ```
 
 To move the stage out to load slides onto it is `hs.move_stage_out()`.
@@ -111,11 +111,11 @@ Before taking a picture, the laser power should be set, the excitation filters s
 ## Lasers
 
 ```python
-hs.lasers['green'].set_power(100) # sets laser 1 (green) to 100 mW
-hs.lasers['red'].set_power(100) # sets laser 2 (red) to 100 mW
+hs.lasers['green'].set_power(100)  # sets laser 1 (green) to 100 mW
+hs.lasers['red'].set_power(100)    # sets laser 2 (red) to 100 mW
 
-hs.lasers['green'].get_power() # returns the power of laser 1 and stores it in hs.l1.power
-hs.lasers['red'].get_power() # returns the power of laser 2 and stores it in hs.l2.power
+hs.lasers['green'].get_power()     # returns the power of laser 1 and stores it in hs.lasers['green'].power
+hs.lasers['red'].get_power()       # returns the power of laser 2 and stores it in hs.lasers['red'].power
 ```
 
 During `hs.initializeInstruments()`, both lasers are set to 10 mW
@@ -125,8 +125,8 @@ During `hs.initializeInstruments()`, both lasers are set to 10 mW
 During `hs.initializeInstruments()`, the excitation filters are homed to the block position and the emission filter is moved into the light path.
 
 ```python
-hs.optics.move_ex(color, filter)		#  moves the excitation filter wheel in the color ('green' or 'red') light path to the filter.
-hs.optics.ex_dict 					# stores the positions and names of the filters in a dictionary
+hs.optics.move_ex(color, filter)		 #  moves the excitation filter wheel in the color ('green' or 'red') light path to the filter.
+hs.optics.ex_dict 					      # stores the positions and names of the filters in a dictionary
 hs.optics.move_em_in(True/False) 	# "True" moves the emission filter into the light path, False moves it out.
 ```
 
@@ -304,7 +304,7 @@ Useful if running the same method repeatedly and only some of the ports change f
 ```
 
 ## Method Recipe
-There are 5 basic actions to build a recipe.
+There are 6 basic actions to build a recipe.
 1. **PORT**: *port name* (string)
 >Valve switches to specified port.
 ```
@@ -320,7 +320,7 @@ PUMP: 2000
 ```
 HOLD: 10
 ```
-4. **WAIT**: ***IMAG** or port name* (string)
+4. **WAIT**: **IMAG** or port name* (string)
 >Recipe waits to continue until the other flowcell is imaging (**IMAG**) or switches to *port name*. If there is only one flowcell, **WAIT** is ignored.
 ```
 WAIT: water
@@ -330,6 +330,12 @@ WAIT: water
 ```
 IMAG: 15
 ```
+6. **TEMP**: *temperature in degrees Celsius* (integer/float)
+>The temperature of the stage is change to the specified temperature.
+```
+TEMP: 55
+```
+
 
 # Run an automated experiment
 Start a method on a HiSeq2500 System from the command line.
@@ -345,6 +351,9 @@ usage: pyseq [-h] [-config PATH] [-name NAME] [-output PATH] [-list]
 - **list**: **See installed methods**
 - **method**: **See an installed method config and method recipe**
 - **virtual**: **Run a virtual experiment**
+- **settings**: **See available configuration options**
+- **ports**: **List COM port identifier of instruments**
+- **diagnostics**: **Perform a simple diagnostics run**
 
 ## Run an experiment
 Assumes an experiment file, config.cfg, is in the current working directory.

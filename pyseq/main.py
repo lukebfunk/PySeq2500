@@ -372,11 +372,15 @@ def setup_logger():
     return logger
 
 
-def configure_instrument(virtual, IMAG_counter, port_dict):
+def configure_instrument(IMAG_counter, port_dict):
     """Configure and check HiSeq settings."""
 
     global n_errors
 
+
+    model, name = methods.get_machine_info(args_['virtual'])
+    if model is not None:
+        config['experiment']['machine'] = model+'::'+name
     experiment = config['experiment']
     method = experiment['method']
     method = config[method]
@@ -387,13 +391,18 @@ def configure_instrument(virtual, IMAG_counter, port_dict):
         error('ConfigFile:: Cycles not specified')
 
     # Creat HiSeq Object
-    if virtual:
-        from . import virtualHiSeq
-        hs = virtualHiSeq.HiSeq(logger)
-        hs.speed_up = int(method.get('speed up', fallback = 5000))
+    if model == 'HiSeq2500':
+        if args_['virtual']:
+            from . import virtualHiSeq
+            hs = virtualHiSeq.HiSeq(name, logger)
+            hs.speed_up = int(method.get('speed up', fallback = 5000))
+        else:
+            import pyseq
+            com_ports = pyseq.get_com_ports()
+            hs = pyseq.HiSeq(name, logger)
     else:
-        import pyseq
-        hs = pyseq.HiSeq(logger)
+        sys.exit()
+
 
     # Check side ports
     try:
@@ -473,8 +482,14 @@ def configure_instrument(virtual, IMAG_counter, port_dict):
 
     # Check Autofocus Settings
     hs.AF = method.get('autofocus', fallback = 'partial once')
+    if hs.AF.lower() in ['','none']: hs.AF = None
     if hs.AF not in ['partial', 'partial once', 'full', 'full once', 'manual', None]:
-        error('ConfigFile:: Auto focus method not valid.')
+        # Skip autofocus and set objective position in config file
+        try:
+            if hs.obj.min_z <= int(hs.AF) <= hs.obj.max_z:
+                hs.AF = int(hs.AF)
+        except:
+            error('ConfigFile:: Auto focus method not valid.')
     #Enable/Disable z stage
     hs.z.active = method.getboolean('enable z stage', fallback = True)
     # Get focus Tolerance
@@ -483,7 +498,7 @@ def configure_instrument(virtual, IMAG_counter, port_dict):
     range = float(method.get('focus range', fallback = 90))
     spacing = float(method.get('focus spacing', fallback = 4.1))
     hs.obj.update_focus_limits(range=range, spacing=spacing)                    # estimate, get actual value in hs.obj_stack()
-
+    hs.stack_split = float(method.get('stack split', fallback = 2/3))
     hs.bundle_height = int(method.get('bundle height', fallback = 128))
 
     # Assign output directory
@@ -499,6 +514,8 @@ def configure_instrument(virtual, IMAG_counter, port_dict):
     image_path = join(save_path, experiment['image path'])
     if not os.path.exists(image_path):
         os.mkdir(image_path)
+    with open(join(image_path,'machine_name.txt'),'w') as file:
+        file.write(hs.name)
     hs.image_path = image_path
     # Assign log directory
     log_path = join(save_path, experiment['log path'])
@@ -544,6 +561,7 @@ def confirm_settings(recipe_z_planes = []):
         print('first_port:', first_port)
     print('save path:', experiment['save path'])
     print('enable z stage:', hs.z.active)
+    print('machine:', experiment['machine'])
     print()
     if not userYN('Confirm experiment'):
         sys.exit()
@@ -696,6 +714,9 @@ def confirm_settings(recipe_z_planes = []):
             print('z planes:', z_planes)
         else:
             print('z planes:', *recipe_z_planes)
+        if z_planes > 1 or any(recipe_z_planes):
+            print('stack split:', hs.stack_split)
+
 
         if not userYN('Confirm imaging settings'):
             sys.exit()
@@ -744,7 +765,7 @@ def confirm_settings(recipe_z_planes = []):
 ##########################################################
 ## Setup HiSeq ###########################################
 ##########################################################
-def initialize_hs(virtual, IMAG_counter):
+def initialize_hs(IMAG_counter):
     """Initialize the HiSeq and return the handle."""
 
     global n_errors
@@ -1376,7 +1397,8 @@ def do_recipe(fc):
             log_message = 'Move to ' + command
             fc.thread = threading.Thread(target = hs.v24[AorB].move,
                 args = (command,))
-            LED(AorB, 'awake')
+            if fc.cycle <= fc.total_cycles:
+                LED(AorB, 'awake')
 
         # Pump reagent into flowcell
         elif instrument == 'PUMP':
@@ -1385,7 +1407,8 @@ def do_recipe(fc):
             log_message = 'Pumping ' + str(volume) + ' uL'
             fc.thread = threading.Thread(target = hs.p[AorB].pump,
                 args = (volume, speed,))
-            LED(AorB, 'awake')
+            if fc.cycle <= fc.total_cycles:
+                LED(AorB, 'awake')
         # Incubate flowcell in reagent for set time
         elif instrument == 'HOLD':
             if command.isdigit():
@@ -1402,8 +1425,8 @@ def do_recipe(fc):
                 input("Press enter to continue...")
                 log_message = ('Continuing...')
                 fc.thread = threading.Thread(target = do_nothing)
-
-            LED(AorB, 'sleep')
+            if fc.cycle <= fc.total_cycles:
+                LED(AorB, 'sleep')
         # Wait for other flowcell to finish event before continuing with current flowcell
         elif instrument == 'WAIT':
             if command == 'TEMP':
@@ -1421,7 +1444,8 @@ def do_recipe(fc):
             else:
                 log_message = 'Skip waiting for ' + command
                 fc.thread = threading.Thread(target = do_nothing)
-            LED(AorB, 'sleep')
+            if fc.cycle <= fc.total_cycles:
+                LED(AorB, 'sleep')
         # Image the flowcell
         elif instrument == 'IMAG':
             if hs.scan_flag and fc.cycle <= fc.total_cycles:
@@ -1433,7 +1457,8 @@ def do_recipe(fc):
             log_message = 'Imaging flowcell'
             fc.thread = threading.Thread(target = IMAG,
                 args = (fc,int(command),))
-            LED(AorB, 'imaging')
+            if fc.cycle <= fc.total_cycles:
+                LED(AorB, 'imaging')
         elif instrument == 'TEMP':
             log_message = 'Setting temperature to ' + command + ' °C'
             command  = float(command)
@@ -1497,6 +1522,7 @@ def IMAG(fc, n_Zplanes):
         focus.manual_focus(hs, flowcells)
         hs.AF = 'partial once'
 
+
     #Image sections on flowcell
     for section in fc.sections:
         pos = fc.stage[section]
@@ -1507,7 +1533,7 @@ def IMAG(fc, n_Zplanes):
 
         # Autofocus
         msg = 'PySeq::' + AorB + '::cycle' + cycle+ '::' + str(section) + '::'
-        if hs.AF:
+        if hs.AF and not isinstance(hs.AF, int):
             obj_pos = focus.get_obj_pos(hs, section, cycle)
             if obj_pos is None:
                 # Move to focus filters
@@ -1534,8 +1560,10 @@ def IMAG(fc, n_Zplanes):
         if fc.z_planes is not None: n_Zplanes = fc.z_planes
 
         # Calculate objective positions to image
-        if n_Zplanes > 1:
-            obj_start = int(hs.obj.position - hs.nyquist_obj*n_Zplanes*2/3)       # Want 2/3 of planes below opt_ob_pos and 1/3 of planes above
+        if n_Zplanes > 1 and not isinstance(hs.AF, int):
+            obj_start = int(hs.obj.position - hs.nyquist_obj*n_Zplanes*hs.stack_split)       # (Default) 2/3 of planes below opt_ob_pos and 1/3 of planes above
+        elif isinstance(hs.AF, int):
+            obj_start = hs.AF
         else:
             obj_start = hs.obj.position
 
@@ -1567,9 +1595,7 @@ def IMAG(fc, n_Zplanes):
             scan_time = str(int(scan_time/60))
             hs.message(msg + 'Imaging completed in', scan_time, 'minutes')
         except:
-            hs.scan_flag = False
             error('Imaging failed.')
-
 
     # Reset filters
     for color in hs.optics.cycle_dict.keys():
@@ -1580,6 +1606,8 @@ def IMAG(fc, n_Zplanes):
 
     if fc.IMAG_counter is not None:
         fc.IMAG_counter += 1
+
+    hs.scan_flag = False
 
 
 
@@ -1641,6 +1669,9 @@ def do_rinse(fc, port=None):
                                        args = (volume, speed,))
     else:
         fc.thread = threading.Thread(target = do_nothing)
+
+    fc.thread.start()
+
 
 ##########################################################
 ## Shut down system ######################################
@@ -1758,7 +1789,11 @@ def get_config(args):
                       })
     # Open config file
     if os.path.isfile(args['config']):
-         config.read(args['config'])
+         config_path = args['config']
+         config.read(config_path)
+    elif args['config'] in methods.get_methods():
+        config_path, recipe_path = methods.return_method(args['config'])
+        config.read(config_path)
     else:
         error('ConfigFile::Does not exist')
         sys.exit()
@@ -1776,8 +1811,8 @@ def get_config(args):
     # Get method specific configuration
     method = config['experiment']['method']
     if method in methods.get_methods():
-        config_path, recipe_path = methods.return_method(method)
-        config.read(config_path)
+        method_path, recipe_path = methods.return_method(method)
+        config.read(method_path)
     elif os.path.isfile(method):
         config.read(method)
         recipe_path = None
@@ -1805,9 +1840,10 @@ def get_config(args):
 
     config['experiment']['recipe path'] = recipe_path
 
+
     # Don't override user defined valve
     user_config = configparser.ConfigParser()
-    user_config.read(args['config'])
+    user_config.read(config_path)
     if USERVALVE:
         config.read_dict({'reagents':dict(user_config['reagents'])})
     if user_config.has_section(method):
@@ -1849,9 +1885,9 @@ if __name__ == 'pyseq.main':
     port_dict = check_ports()                                                   # Check ports in configuration file
     first_line, IMAG_counter, z_planes = check_instructions()                   # Checks instruction file is correct and makes sense
     flowcells = setup_flowcells(first_line, IMAG_counter)                       # Create flowcells
-    hs = configure_instrument(args_['virtual'], IMAG_counter, port_dict)
+    hs = configure_instrument(IMAG_counter, port_dict)
     confirm_settings(z_planes)
-    hs = initialize_hs(args_['virtual'], IMAG_counter)                          # Initialize HiSeq, takes a few minutes
+    hs = initialize_hs(IMAG_counter)                                            # Initialize HiSeq, takes a few minutes
 
     if n_errors is 0:
         flush_YorN = do_flush()                                                 # Ask to flush out lines
