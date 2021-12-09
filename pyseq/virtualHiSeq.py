@@ -195,11 +195,17 @@ class Ystage():
     def __init__(self):
         self.min_y = -7000000
         self.max_y = 7500000
+        self.home = 0
         self.spum = 100     # steps per um
         self.mode = None
         self.velocity = None
         self.gains = None
         self.position = 0
+        self.configurations = {'imaging':{'g':'5,10,5,2,0'  ,'v':0.15400},
+                               'moving': {'g':'5,10,7,1.5,0','v':1}
+                              }
+    def initialize(self):
+        pass
 
     def move(self, position):
         """Move ystage to absolute step position.
@@ -224,6 +230,12 @@ class Ystage():
 
         return self.position
 
+    def check_position(self):
+        return 1
+
+    def read_position(self):
+        return self.position
+
     def command(self, text):
         return text
 
@@ -235,7 +247,7 @@ class Ystage():
                 gains = str(self.configurations[mode]['g'])
                 velocity = str(self.configurations[mode]['v'])
                 self.mode = mode
-                self.velocity = v
+                self.velocity = velocity
                 self.gains = gains
             else:
                 gains = None
@@ -306,6 +318,10 @@ class OBJstage():
         self.focus_start =  2000                                                # focus start step
         self.focus_stop = 62000                                                 # focus stop step
         self.focus_rough = int((self.max_z - self.min_z)/2 + self.min_z)
+
+    def initialize(self):
+        self.position = 35000
+        self.v = 5
 
     def move(self, position):
         """Move the objective to an absolute step position.
@@ -408,6 +424,10 @@ class FPGA():
         self.y = ystage
         self.led_dict = {'off':'0', 'yellow':'1', 'green':'3', 'pulse green':'4',
                          'blue':'5', 'pulse blue':'6', 'sweep blue': '7'}
+
+    def initialize(self):
+        self.LED(1,'off')
+        self.LED(2,'off')
 
     def read_position(self):
         """Read the y position of the encoder for TDI imaging.
@@ -936,6 +956,10 @@ class Camera():
         self.sensor_mode = 'TDI'
         return True
 
+    def setAREA(self):
+        self.sensor_mode = 'AREA'
+        return True
+
     def saveImage(self, image_name, image_path):
         # save text info as image data
         n_bytes = self.frames*self.bundle_height*2048*2*12
@@ -968,7 +992,7 @@ import warnings
 import pandas as pd
 
 class HiSeq():
-    def __init__(self, Logger = None):
+    def __init__(self, name = 'HiSeq2500', Logger = None):
         self.x = Xstage()
         self.y = Ystage()
         self.z = Zstage()
@@ -1007,6 +1031,7 @@ class HiSeq():
         self.scan_flag = False
         self.speed_up = 10
         self.current_view = None
+        self.name = name
 
     def initializeCams(self, Logger=None):
         """Initialize all cameras."""
@@ -1377,7 +1402,6 @@ class HiSeq():
 
         """
 
-        self.scan_flag = True
         dx = self.tile_width*1000-self.resolution*overlap                  # x stage delta in in microns
         dx = round(dx*self.x.spum)
 
@@ -1394,7 +1418,6 @@ class HiSeq():
             self.x.move(self.x.position + dx)                                   # Move to next x position
 
         stop = time.time()
-        self.scan_flag = False
 
         return stop - start
 

@@ -1,7 +1,6 @@
 #!/usr/bin/python
-#import pandas as pd
 import numpy as np
-from numpy.linalg import svd
+#from numpy.linalg import svd
 from os import path, listdir, stat, remove
 from os import name as os_name
 from math import log2, ceil
@@ -34,7 +33,9 @@ def manual_focus(hs, flowcells):
             # Take objective stack
             focus_stack = hs.obj_stack()
             if not hs.virtual:
-                focus_stack = IA.HiSeqImages(obj_stack=focus_stack, logger = hs.logger)
+                focus_stack = IA.HiSeqImages(image_path = hs.image_path,
+                                             obj_stack=focus_stack,
+                                             logger = hs.logger)
             #Correct background
             focus_stack.correct_background()
 
@@ -198,6 +199,8 @@ class Autofocus():
           objective position, only if a previous in focus objective position has
           not been found. Use for large sections and the zstage has not changed
           position.
+        - preset: An integer objective step can be provided to skip autofocusing
+          and immediately begin imaging.
 
        **Attributes:**
         - hs (HiSeq): HiSeq object.
@@ -254,7 +257,7 @@ class Autofocus():
             im_path = path.join(self.image_path, 'partial')
         else:
             im_path = self.image_path
-            hs.scan(1, 1, pos_dict['n_frames'], image_name)
+        hs.scan(1, 1, pos_dict['n_frames'], image_name)
         hs.y.move(y_initial)
         hs.x.move(x_initial)
 
@@ -301,7 +304,7 @@ class Autofocus():
             im_path = path.join(self.image_path,'full')
         else:
             im_path = self.image_path
-            hs.scan(pos_dict['n_tiles'], 1, pos_dict['n_frames'], image_name)
+        hs.scan(pos_dict['n_tiles'], 1, pos_dict['n_frames'], image_name)
         hs.y.move(y_initial)
         hs.x.move(x_initial)
 
@@ -356,7 +359,8 @@ class Autofocus():
             hs.x.move(x_pos)
             focus_stack = hs.obj_stack()
             if not hs.virtual:
-                focus_stack = IA.HiSeqImages(obj_stack=focus_stack)
+                focus_stack = IA.HiSeqImages(image_path = self.image_path,
+                                             obj_stack=focus_stack)
 
             focus_stack.correct_background()
 
@@ -1003,6 +1007,7 @@ def get_jpeg_size(obj_stack):
     for ci, ch in enumerate(obj_stack.channel.values):
         size_ = np.empty(shape=(n_frames,))
         ch_stack = obj_stack.sel(channel = ch)
+        # map px values from background value - max px to 0-255
         ch_stack = np.interp(ch_stack, (ch_bg[ci],ch_max_px.sel(channel=ch)), (0,255)).astype('uint8')
         for i in obj_stack.frame.values:
             im = ch_stack[i,:,:]
